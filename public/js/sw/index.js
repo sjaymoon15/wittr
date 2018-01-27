@@ -20,4 +20,9 @@ self.addEventListener('install', function(event) {
 self.addEventListener('fetch', function(event) {
   // Leave this blank for now.
   // We'll get to this in the next task.
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request);
+    })
+  )
 });
