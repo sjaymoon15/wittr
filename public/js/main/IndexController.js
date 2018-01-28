@@ -11,13 +11,102 @@ export default function IndexController(container) {
   this._registerServiceWorker();
 }
 
+//let's go
+/* service worker life cycle
+  reg.unregister();
+  reg.update();
+  reg.installing;
+  reg.waiting;
+  reg.active;
+  reg.addEventListener('updatefound', function() {
+    // reg.installing has changed
+  })
+  var sw = reg.installing;
+  console.log(sw.state); //... logs 'installing'
+    // state can also be: 'installed'
+    // 'activating'
+    // 'activated' <- sw is ready to receive fetch events
+    // 'redundant' <- sw has been thrown away
+
+  sw fires an event statechange wheneve the value of the state property changes.
+  sw.addEventListener('statechange', function() {
+    // sw.state has changed
+  })
+
+  'navigator.serviceWorker.controller' refers to the sw that controls this page
+
+  if (!navigator.serviceWorker.controller) {
+    // page didn't load using a sw
+  }
+
+  if (reg.waiting) {
+    // there's an update ready!
+  }
+  if (reg.installing) {
+    // there's an update in progress
+    reg.installing.addEventListener('statechange', function() {
+      if (this.state = 'installed') {
+        // there's an update ready!
+      }
+    })
+  }
+
+  reg.addEventListener('updatefound', function() {
+    reg.installing.addEventListener('statechange', function() {
+      if(this.state == 'installed') {
+        // there's an update ready!
+      }
+    })
+  })
+*/
+
 IndexController.prototype._registerServiceWorker = function() {
   if (!navigator.serviceWorker) return;
 
-  navigator.serviceWorker.register('/sw.js').then(function() {
-    console.log('Registration worked!');
-  }).catch(function() {
-    console.log('Registration failed!');
+  var indexController = this;
+
+  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+    // TODO: if there's no controller, this page wasn't loaded
+    // via a service worker, so they're looking at the latest version.
+    // In that case, exit early
+    if (!navigator.serviceWorker.controller) {
+      return;
+    }
+    // TODO: if there's an updated worker already waiting, call
+    // indexController._updateReady()
+    if (reg.waiting) {
+      indexController._updateReady();
+      return;
+    }
+    // TODO: if there's an updated worker installing, track its
+    // progress. If it becomes "installed", call
+    // indexController._updateReady()
+    if (reg.installing) {
+      // indexController._trackInstalling(reg.installing);
+      var sw = reg.installing;
+      sw.addEventListener('statechange', function() {
+        if (sw.state == 'installed') {
+          indexController._updateReady();
+        }
+      })
+      return;
+    }
+
+    reg.addEventListener('updatefound', function() {
+      // indexController._trackInstalling(reg.installing);
+      var sw = reg.installing;
+      sw.addEventListener('statechange', function() {
+        if (sw.state == 'installed') {
+          indexController._updateReady();
+        }
+      })
+    });
+  });
+};
+
+IndexController.prototype._updateReady = function() {
+  var toast = this._toastsView.show("New version available", {
+    buttons: ['whatever']
   });
 };
 
