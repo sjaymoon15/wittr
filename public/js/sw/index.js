@@ -1,9 +1,8 @@
+var staticCacheName = 'wittr-static-v2';
+
 self.addEventListener('install', function(event) {
   event.waitUntil(
-    // TODO: change the site's theme, eg swap the vars in public/scss/_theme.scss
-    // Ensure at least $primary-color changes
-    // TODO: change cache name to 'wittr-static-v2'
-    caches.open('wittr-static-v2').then(function(cache) {
+    caches.open(staticCacheName).then(function(cache) {
       return cache.addAll([
         '/',
         'js/main.js',
@@ -17,15 +16,16 @@ self.addEventListener('install', function(event) {
 });
 
 self.addEventListener('activate', function(event) {
-  const currentCaches = ['wittr-static-v2'];
   event.waitUntil(
-    // TODO: remove the old cache
-    caches.keys().then(cacheList => {
-      return Promise.all(cacheList.map(function(cacheName) {
-        if (currentCaches.indexOf(cacheName) === -1) {
+    caches.keys().then(function(cacheNames) {
+      return Promise.all(
+        cacheNames.filter(function(cacheName) {
+          return cacheName.startsWith('wittr-') &&
+                 cacheName != staticCacheName;
+        }).map(function(cacheName) {
           return caches.delete(cacheName);
-        }
-      }))
+        })
+      );
     })
   );
 });
@@ -37,3 +37,13 @@ self.addEventListener('fetch', function(event) {
     })
   );
 });
+
+// TODO: listen for the "message" event, and call
+// skipWaiting if you get the appropriate message
+self.addEventListener('message', function(event) {
+  console.log('listening to message: event.data', event.data);
+  if (event.data.skipWaiting) {
+    console.log('inside the if');
+    self.skipWaiting();
+  }
+})
