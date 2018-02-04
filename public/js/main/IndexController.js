@@ -2,12 +2,34 @@ import PostsView from './views/Posts';
 import ToastsView from './views/Toasts';
 import idb from 'idb';
 
+function openDatabase() {
+  // If the browser doesn't support service worker,
+  // we don't care about having a database
+  if (!navigator.serviceWorker) {
+    return Promise.resolve();
+  }
+
+  // TODO: return a promise for a database called 'wittr'
+  // that contains one objectStore: 'wittrs'
+  // that uses 'id' as its key
+  // and has an index called 'by-date', which is sorted
+  // by the 'time' property
+  return idb.open('wittr', 1, function(upgradeDb) {
+    switch(upgradeDb.oldVersion) {
+      case 0:
+        var wittrsStore = upgradeDb.createObjectStore('wittrs', { keyPath: 'id' });
+        wittrsStore.createIndex('by-date', 'time');
+    }
+  });
+}
+
 export default function IndexController(container) {
   this._container = container;
   this._postsView = new PostsView(this._container);
   this._toastsView = new ToastsView(this._container);
   this._lostConnectionToast = null;
   this._openSocket();
+  this._dbPromise = openDatabase();
   this._registerServiceWorker();
 }
 
@@ -36,12 +58,14 @@ IndexController.prototype._registerServiceWorker = function() {
     });
   });
 
-  // TODO: listen for the controlling service worker changing
-  // and reload the page
+  // Ensure refresh is only called once.
+  // This works around a bug in "force update on reload".
+  var refreshing;
   navigator.serviceWorker.addEventListener('controllerchange', function() {
-    console.log("controllerchange listened!");
+    if (refreshing) return;
     window.location.reload();
-  })
+    refreshing = true;
+  });
 };
 
 IndexController.prototype._trackInstalling = function(worker) {
@@ -60,9 +84,7 @@ IndexController.prototype._updateReady = function(worker) {
 
   toast.answer.then(function(answer) {
     if (answer != 'refresh') return;
-    // TODO: tell the service worker to skipWaiting
-    console.log("post message");
-    worker.postMessage({ skipWaiting : true })
+    worker.postMessage({action: 'skipWaiting'});
   });
 };
 
@@ -114,5 +136,21 @@ IndexController.prototype._openSocket = function() {
 // called when the web socket sends message data
 IndexController.prototype._onSocketMessage = function(data) {
   var messages = JSON.parse(data);
+
+  this._dbPromise.then(function(db) {
+    if (!db) return;
+
+    // TODO: put each message into the 'wittrs'
+    // object store.
+    var tx = db.transaction('wittrs', 'readwrite');
+    var wittrsStore = tx.objectStore('wittrs');
+    messages.forEach(function(message) {
+      wittrsStore.put(message);
+    })
+    return tx.complete;
+  }).then(function() {
+    console.log('messages added');
+  })
+
   this._postsView.addPosts(messages);
 };
